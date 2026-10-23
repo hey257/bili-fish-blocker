@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """用真实抓取的评论数据回测新规则（自我@ / 机械复述），统计误伤面。"""
 import glob
 import json
@@ -94,19 +94,13 @@ def score(rec):
     body = re.sub(r"^回复\s*@[^\s:：]{1,30}\s*[:：]\s*", "", text)
     if LEAD_AT.search(body):
         add(2, "开头直接@人")
-        if len(body) > 40:
-            add(1, "开头@后跟长段落")
     if C_TASK.search(text):
         add(2, "口吻像接任务")
     if C_ACTION.search(text):
         add(1, "括号动作描写")
-    if C_AT.search(text):
-        add(1, "有@对象")
     if level <= 2:
         add(1, "等级≤2")
-    if not sign:
-        add(1, "签名空白")
-    elif SIGN_MASTER.search(sign):
+    if sign and SIGN_MASTER.search(sign):
         add(5, "签名挂着我的主人@某某")
     if NAME_EMOJI.search(name):
         add(2, "昵称含鱼emoji")

@@ -1,8 +1,8 @@
-# 🐟 bili-fish-blocker
+﻿# 🐟 bili-fish-blocker
 
 **B站「大肥鱼」AI 人机评论屏蔽器** — 一个 Tampermonkey 油猴脚本。
 
-![version](https://img.shields.io/badge/version-1.4.0-3ecf8e)
+![version](https://img.shields.io/badge/version-1.5.0-3ecf8e)
 ![license](https://img.shields.io/badge/license-MIT-fb7299)
 ![platform](https://img.shields.io/badge/platform-Tampermonkey-blue)
 
@@ -64,13 +64,14 @@ Chrome / Edge / Firefox 装 [Tampermonkey](https://www.tampermonkey.net/)。
 | 括号动作描写 | +1 | `（尾巴甩了一下）` |
 | 等级 ≤ 2 / 签名空白 | +1 | 小号特征（面板可关） |
 
-**单一弱信号永远不够**：只 @ 了人（1 分）、只小号（2 分）都到不了 5 分——无法判断的就放过。
+**单一弱信号永远不够**：只 @ 了人（2 分）、只小号（1 分）都到不了 5 分——无法判断的就放过。
 
 ### 永不误伤
 
 - 置顶评论
 - 蓝标认证账号
 - 当前视频的 UP 主
+- **评论里 @ 了本视频 UP 主**（真人 @ UP 主聊内容，是评论区最正常的行为）
 - 你手动点过「误伤，放行」的号
 
 ---

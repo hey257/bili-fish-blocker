@@ -1,9 +1,9 @@
-// ==UserScript==
+﻿// ==UserScript==
 // @name         B站大肥鱼评论屏蔽器 (bili-fish-blocker)
-// @namespace    https://github.com/hey257/bili-fish-blocker
-// @version      1.4.0
-// @description  屏蔽B站评论区里的"大肥鱼"AI人机评论（DSH / dsh-bili-scroll 自动刷站账号）。按昵称、自称、@主人、机械复述、实测数据复读等特征打分，命中后直接从评论区接口响应中剔除；纯本地运行，不改动服务器数据，不影响他人看到的内容。
-// @author       hey257
+// @namespace    https://local/bili-fish-blocker
+// @version      1.5.0
+// @description  屏蔽B站评论区里的"大肥鱼"AI人机评论（DSH / dsh-bili-scroll 自动刷站账号）。按昵称、自称、@主人、等级、签名、头像等特征打分，命中后直接从评论区接口响应中剔除；纯本地运行，不改动服务器数据，不影响他人看到的内容。
+// @author       local
 // @match        *://*.bilibili.com/*
 // @match        *://bilibili.com/*
 // @run-at       document-start
@@ -134,6 +134,65 @@
   };
 
   /**
+   * 当前视频 UP 主的昵称（用于"@ 了 UP 主就豁免"）
+   * 页面初始数据里有好几个可能的位置，逐个试，取不到就返回空
+   */
+  const upName = () => {
+    try {
+      const s = window.__INITIAL_STATE__;
+      if (!s) return '';
+      const cand = [
+        s.upData && s.upData.uname,
+        s.upData && s.upData.name,
+        s.videoData && s.videoData.owner && s.videoData.owner.name,
+        s.videoData && s.videoData.owner && s.videoData.owner.uname,
+        s.videoData && s.videoData.owner && s.videoData.owner.uname_origin,
+      ].filter(Boolean);
+      return cand.length ? String(cand[0]).trim() : '';
+    } catch (e) { return ''; }
+  };
+
+  /**
+   * 评论里 @ 到的所有昵称（剥掉 B 站楼中楼自动加的「回复 @某人 :」前缀）
+   */
+  function atNames(reply) {
+    const text = contentOf(reply)
+      .replace(/^回复\s*@[^\s:：]{1,30}\s*[:：]\s*/, '');
+    const out = [];
+    // 结构化数据优先
+    const members = ((reply || {}).content || {}).members;
+    if (Array.isArray(members)) {
+      for (const it of members) {
+        const u = String((it && it.uname) || '').trim();
+        if (u) out.push(u);
+      }
+    }
+    // 文本兜底
+    for (const m of text.match(/@[^\s@:：]{1,30}/g) || []) {
+      const u = m.slice(1).trim();
+      if (u) out.push(u);
+    }
+    return out;
+  }
+
+  /**
+   * @ 了本视频 UP 主 → 豁免
+   * 真人 @ UP 主聊内容是评论区最正常的行为，绝不能因为"开头@人"被误伤
+   */
+  function atUp(reply) {
+    const up = upName();
+    if (!up) return false;
+    const lower = up.toLowerCase();
+    for (const n of atNames(reply)) {
+      const nl = n.toLowerCase();
+      if (nl === lower) return true;
+      // 昵称被截断 / 带前后缀的情况
+      if (nl.length >= 3 && (lower.startsWith(nl) || nl.startsWith(lower))) return true;
+    }
+    return false;
+  }
+
+  /**
    * 自我 @ 检测 —— 人机最致命的破绽
    * 真人类几乎不可能在评论里 @ 自己；这是插件把"主人名"填错成自己账号的产物。
    *
@@ -219,21 +278,14 @@
 
     // ---- 开头直接 @ 某人 ----
     // 剥掉 B 站楼中楼自动加的「回复 @某人 :」前缀后再判断
-    // 真人开头 @ 基本都是短句（"@某某 哈哈哈哈"），人机开头 @ 后面必跟"总结体"长段落
     const body = text.replace(/^回复\s*@[^\s:：]{1,30}\s*[:：]\s*/, '');
-    if (LEAD_AT.test(body)) {
-      add(2, '开头直接@人');
-      // 长段落只给 +1，必须叠加其他特征才够 5 分（避免单靠长度误伤）
-      if (body.length > 40) add(1, '开头@后跟长段落');
-    }
+    if (LEAD_AT.test(body)) add(2, '开头直接@人');
 
     if (C_TASK.test(text)) add(2, '口吻像接任务');
     if (C_ACTION.test(text)) add(1, '括号动作描写');
-    if (C_AT.test(text)) add(1, '有@对象');
 
     if (cfg.useLevel && level <= 2) add(1, '等级≤2');
-    if (!sign) add(1, '签名空白');
-    else if (SIGN_MASTER.test(sign)) add(5, '签名里挂着"我的主人@某某"');
+    if (sign && SIGN_MASTER.test(sign)) add(5, '签名里挂着"我的主人@某某"');
 
     if (avatar && knownAvatars.has(avatar)) add(4, '疑似机器人同款头像');
     if (/[🐟🐳]/.test(name)) add(2, '昵称含鱼emoji');
@@ -249,6 +301,7 @@
     if (isUpTop(reply) || isVerified(reply)) return null;   // 置顶 / 认证账号不误伤
     if (mid === upMid()) return null;                       // 本视频 UP 主
     if (whitelist.has(mid)) return null;
+    if (atUp(reply)) return null;                           // @ 了本视频 UP 主 → 豁免
     if (blockedMids.has(mid)) return { score: 99, reasons: ['已记录为机器人'], mid };
 
     const res = scoreReply(reply);
@@ -582,6 +635,9 @@
   window.__fishBlocker = {
     cfg,
     scoreReply,
+    shouldBlock,
+    upName,
+    atNames,
     get blocked() { return blockedLog.slice(); },
   };
 })();

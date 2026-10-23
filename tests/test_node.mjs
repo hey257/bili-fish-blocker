@@ -1,8 +1,21 @@
 // 在 Node 里用 mock 环境真正加载 userscript，验证打分与过滤逻辑。
 import fs from 'node:fs';
 import vm from 'node:vm';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const code = fs.readFileSync(new URL('./bili-fish-blocker.user.js', import.meta.url), 'utf8');
+// 兼容两种布局：同目录（开发时）与 ../bili-fish-blocker.user.js（仓库 tests/ 下）
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const CANDIDATES = [
+  path.join(HERE, 'bili-fish-blocker.user.js'),
+  path.join(HERE, '..', 'bili-fish-blocker.user.js'),
+];
+const SCRIPT_PATH = CANDIDATES.find((p) => fs.existsSync(p));
+if (!SCRIPT_PATH) {
+  console.error('找不到 bili-fish-blocker.user.js，试过:\n  ' + CANDIDATES.join('\n  '));
+  process.exit(1);
+}
+const code = fs.readFileSync(SCRIPT_PATH, 'utf8');
 
 const storage = new Map();
 const el = () => ({
@@ -104,11 +117,15 @@ const CASES = [
   ['普通观众', '这个屏蔽脚本好用吗？我也想屏蔽那些大肥鱼', 6, 'x', 'human'],
   ['技术宅', '按昵称打分这招可以，阈值调到 5 就行', 6, 'x', 'human'],
 
-  // ===== 开头直接 @（用户要求加入判定）=====
-  // 人机：开头 @ + 长段落"总结体"
-  ['霉那么好', '@黯坞 这条最值的是把「摘要必须带回原文门牌、拿不到就写未知」立成纪律，而不是再装一个记忆插件。五层+墨+宪章听完，再决定要不要上。23 分钟', 6, 'x', 'bot'],
+  // ===== 用户报的误伤（必须放行）=====
+  // 真人 @ 大UP主玩梗
+  ['乘风破浪的藏狐', '@影视飓风 对面老板娘都送过来了，什么时候给王杰克做画质升级计划[tv_坏笑][tv_坏笑]', 6, '', 'human'],
+  ['路人丙', '@影视飓风 哈哈哈哈这个画质[tv_点赞]', 6, '', 'human'],
+
+  // ===== 开头 @ 且内容确实是人机的（仍应屏蔽）=====
+  ['霉那么好', '@黯坞 这条最值的是把「摘要必须带回原文门牌、拿不到就写未知」立成纪律，而不是再装一个记忆插件。', 6, 'x', 'bot'],
+  ['大肥羊mod版', '@084希斯爱好者 1017 这版更新可以看这个：coding 和 agent 的分数、搜索 API 报价', 6, 'x', 'bot'],
   ['安明的大肥魚', '@寻安明 「维持文锋形态要消耗大量算力」这梗好笑，但反过来也成立：R1 出圈那阵最被低估的是推理成本，梁文锋本人讲工程效率，不讲神化。', 6, 'x', 'bot'],
-  ['大肥羊mod版', '@084希斯爱好者 1017 这版更新可以看这个：coding 和 agent 的分数、搜索 API 报价，还有 2T 以上模型的出口限制都', 6, 'x', 'bot'],
   // 真人：开头 @ 但是短句
   ['VYEL枫吹叶', '@女仆鱼蓝蓝 ？？？快来看，笑死我了', 6, 'x', 'human'],
   ['ぴん萌新瑟瑟发抖', '@小李同志的鲸鱼 太坏了', 6, 'x', 'human'],
@@ -163,6 +180,36 @@ const topReply = mkReply('大肥鱼本鱼-', '置顶内容', 2, '', '999', { rep
 const t1 = fb.scoreReply(upReply).score, t2 = fb.scoreReply(topReply).score;
 console.log('\nUP主那条打分', t1, '（脚本内会被 upMid 拦掉，不会误伤）');
 console.log('置顶那条打分', t2, '（脚本内 is_up_top 直接放行）');
+
+/* ---------- @ 了本视频 UP 主 → 豁免 ---------- */
+const OLD_INITIAL = sandbox.window.__INITIAL_STATE__;
+sandbox.window.__INITIAL_STATE__ = {
+  upData: { mid: '314853973', uname: 'Larry-E' },
+  videoData: { owner: { name: 'Larry-E' } },
+};
+const AT_UP_CASES = [
+  // @ 了 UP 主，哪怕昵称带鱼、内容像人机，也必须放行
+  ['塔什干家的大肥鱼', '@Larry-E 同题实测23.3M降到7.8M，省66%，作者说一定要把验收标准写进题面', 2, '', 'human'],
+  ['某条鱼', '@Larry-E 老板，这条值得看！', 2, '', 'human'],
+  // 不 @ UP 主时，同一条内容应当被屏蔽（确认豁免没有误放）
+  ['塔什干家的大肥鱼', '@路人甲 同题实测23.3M降到7.8M，省66%，作者说一定要把验收标准写进题面', 2, '', 'bot'],
+];
+let upFails = 0;
+console.log('\n[UP主豁免]');
+for (const [name, text, level, sign, expect] of AT_UP_CASES) {
+  const r = mkReply(name, text, level, sign, 'mid_' + Math.random().toString(36).slice(2, 8));
+  const raw = fb.scoreReply(r);
+  const v = fb.shouldBlock(r);
+  const hit = !!v;
+  const ok = (expect === 'human' && !hit) || (expect === 'bot' && hit);
+  if (!ok) upFails++;
+  const tag = text.includes('@Larry-E') ? '@UP主' : '@路人';
+  console.log(`  ${hit ? 'BLOCK' : 'keep '} ${name.padEnd(18)} ${tag.padEnd(8)} [期望${expect}] ${ok ? '' : '<-- 不符预期'}`);
+  console.log(`         原始分 ${raw.score} ｜ ${raw.reasons.join(' / ')}`);
+}
+console.log('  UP主豁免不符预期:', upFails);
+if (upFails) fails += upFails;
+sandbox.window.__INITIAL_STATE__ = OLD_INITIAL;
 
 console.log(fails === 0 ? '\n全部通过' : `\n失败 ${fails} 条`);
 
