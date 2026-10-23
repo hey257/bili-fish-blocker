@@ -1,27 +1,38 @@
-# 依赖
+# ===== 依赖 =====
 node_modules/
 __pycache__/
 *.pyc
 .venv/
 venv/
 
-# 视频/音频构建产物（demo.mp4 是唯一保留的成品）
-build/
+# ===== 视频/音频构建产物 =====
+# 宣传视频的主目录整个忽略，只放行成品和卡片
+宣传视频/build/
+宣传视频/成品/
+宣传视频/对比/
 *.wav
 *.mp3
 *.m4s
 
-# 编辑器
+# docs/media 里的 demo.mp4 是要保留的
+!docs/media/demo.mp4
+
+# ===== 编辑器 =====
 .vscode/
 .idea/
 *.swp
+*.swo
 
-# 系统
+# ===== 系统 =====
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# 本地数据
+# ===== 本地数据 / 临时文件 =====
 *.log
 fish_users.json
 pool.json
+device_code.txt
+tmp_auth.py
+tmp_poll.py
+.backup-before-merge/
