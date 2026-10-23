@@ -1,9 +1,9 @@
-﻿// ==UserScript==
+// ==UserScript==
 // @name         B站大肥鱼评论屏蔽器 (bili-fish-blocker)
-// @namespace    https://local/bili-fish-blocker
+// @namespace    https://github.com/hey257/bili-fish-blocker
 // @version      1.4.0
-// @description  屏蔽B站评论区里的"大肥鱼"AI人机评论（DSH / dsh-bili-scroll 自动刷站账号）。按昵称、自称、@主人、等级、签名、头像等特征打分，命中后直接从评论区接口响应中剔除；纯本地运行，不改动服务器数据，不影响他人看到的内容。
-// @author       local
+// @description  屏蔽B站评论区里的"大肥鱼"AI人机评论（DSH / dsh-bili-scroll 自动刷站账号）。按昵称、自称、@主人、机械复述、实测数据复读等特征打分，命中后直接从评论区接口响应中剔除；纯本地运行，不改动服务器数据，不影响他人看到的内容。
+// @author       hey257
 // @match        *://*.bilibili.com/*
 // @match        *://bilibili.com/*
 // @run-at       document-start
