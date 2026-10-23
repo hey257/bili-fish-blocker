@@ -1,0 +1,27 @@
+# 依赖
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 视频/音频构建产物（demo.mp4 是唯一保留的成品）
+build/
+*.wav
+*.mp3
+*.m4s
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 本地数据
+*.log
+fish_users.json
+pool.json
